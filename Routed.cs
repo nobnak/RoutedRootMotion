@@ -10,6 +10,7 @@ namespace RoutedRootMotion {
 
         public Settings settings = new Settings();
 
+        protected float3 eulerAngles_init_lc;
         protected Animator animator;
         protected AnimatorAdapter animatorAdapter;
 
@@ -19,6 +20,7 @@ namespace RoutedRootMotion {
             if ((animatorAdapter = animator.GetComponent<AnimatorAdapter>()) == null) 
                 animatorAdapter = animator.gameObject.AddComponent<AnimatorAdapter>();
             animatorAdapter.SetListener(Listen);
+            eulerAngles_init_lc = transform.localEulerAngles;
         }
         protected virtual void OnDisable() {
             if (animatorAdapter != null) {
@@ -31,12 +33,13 @@ namespace RoutedRootMotion {
         #region methods
         protected void Listen(Animator animator) {
             float3 pos_curr_lc = transform.localPosition;
-            quaternion rot_curr_lc = transform.localRotation;
 
             float3 pos_next_lc = transform.InverseTransformVector(animator.rootPosition);
             pos_next_lc = math.select(pos_next_lc, pos_curr_lc, settings.constraints.pos);
 
-            quaternion rot_next_lc = math.mul(animator.deltaRotation, rot_curr_lc);
+            quaternion rot_next_lc =  animator.rootRotation;
+            if (transform.parent != null) rot_next_lc = math.mul(math.inverse(transform.parent.rotation), rot_next_lc);
+            rot_next_lc = RotationUtil.ClosestRotationOnAxis(rot_next_lc, RotationUtil.Axis.Y);
 
             transform.localPosition = pos_next_lc;
             transform.localRotation = rot_next_lc;
