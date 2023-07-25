@@ -4,10 +4,10 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace RoutedRootMotion {
-    public static class RotationUtil {
+    public static class QuaternionUtil {
 
         #region static
-        public static quaternion ClosestRotationOnAxis(quaternion p, Axis axis) {
+        public static quaternion ClosestRotationOnAxis(this quaternion p, Axis axis) {
             float4 q_value = default;
             float4 p_value = p.value;
             int axis_int = (int)axis;
@@ -21,6 +21,9 @@ namespace RoutedRootMotion {
                 q_value.w = 1f;
             }
             return new quaternion(q_value);
+        }
+        public static float Angle(this quaternion q) {
+            return 2f * math.acos(q.value.w);
         }
         #endregion
 
