@@ -1,3 +1,4 @@
+using Codice.CM.Common;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -54,39 +55,38 @@ namespace RoutedRootMotion {
                 angle_deg = math.degrees(QuaternionUtil.Angle(rot));
             }
 
-            var limitAngle_deg = math.clamp(settings.thresholds.limitAngle_rotMode_deg, 0f, 180f);
-            var rotMode_ratio = math.saturate(angle_deg <= EPSILON_DEG ? 0f : (angle_deg >= limitAngle_deg) ? 1f : math.unlerp(0f, limitAngle_deg, angle_deg));
-
-            float3 pos_forward_lc;
-            quaternion rot_forward_lc;
-            MoveByRootMotion(animator, out pos_forward_lc, out rot_forward_lc);
-
-            float rotRatio = 0f;
-            float3 pos_towradForce_lc = pos_curr_lc;
-            quaternion rot_towardForce_lc = rot_curr_lc;
-            if (force.enabled) {
-                rotRatio = angle_deg < EPSILON_DEG ? 0f : math.saturate(dt * settings.driver.rotSpeed_deg / angle_deg);
-                rot_towardForce_lc = math.slerp(rot_towardForce_lc, rot_force_lc, rotRatio);
+            if (angle_deg <= settings.constants.epsilon_min_rot_deg) {
+                float3 pos_forward_lc;
+                quaternion rot_forward_lc;
+                MoveByRootMotion(animator, out pos_forward_lc, out rot_forward_lc);
+                transform.localPosition = pos_forward_lc;
+                transform.localRotation = rot_forward_lc;
+            } else {
+                float3 pos_towradForce_lc = pos_curr_lc;
+                quaternion rot_towardForce_lc = rot_curr_lc;
+                if (force.enabled) {
+                    var rotRatio = math.saturate(dt * settings.rotateToward.speed_rotate_deg / angle_deg);
+                    rot_towardForce_lc = math.slerp(rot_towardForce_lc, rot_force_lc, rotRatio);
+                }
+                transform.localPosition = pos_towradForce_lc;
+                transform.localRotation = rot_towardForce_lc;
             }
 
-            float3 pos_next_lc = math.lerp(pos_forward_lc, pos_towradForce_lc, rotMode_ratio);
-            quaternion rot_next_lc = math.slerp(rot_forward_lc, rot_towardForce_lc, rotMode_ratio);
-            transform.localPosition = pos_next_lc;
-            transform.localRotation = rot_next_lc;
-
-            Debug.Log($"Angle={angle_deg}, Rot ratio={rotRatio}");
+            Debug.Log($"Angle={angle_deg:f}");
         }
 
         private void MoveByRootMotion(Animator animator, out float3 pos_next_lc, out quaternion rot_next_lc) {
             float3 pos_curr_lc = transform.localPosition;
             quaternion rot_curr_lc = transform.localRotation;
 
-            pos_next_lc = transform.InverseTransformVector(animator.rootPosition);
-            pos_next_lc = math.select(pos_next_lc, pos_curr_lc, settings.constraints.pos);
+            pos_next_lc = animator.rootPosition;
+            if (transform.parent != null) pos_next_lc = transform.parent.InverseTransformPoint(pos_next_lc);
+            //pos_next_lc = math.select(pos_next_lc, pos_curr_lc, new bool3(false, true, false));
 
             rot_next_lc = animator.rootRotation;
             if (transform.parent != null) rot_next_lc = math.mul(math.inverse(transform.parent.rotation), rot_next_lc);
-            switch (settings.constraints.rot) {
+            var rot_const = RotationConstraint.Fixed;
+            switch (rot_const) {
                 case RotationConstraint.Fixed: {
                     rot_next_lc = rot_curr_lc;
                     break;
@@ -101,6 +101,10 @@ namespace RoutedRootMotion {
         #endregion
 
         #region declarations
+        public enum AnimationMode {
+            RootMotion = 0,
+            Script,
+        }
         public enum RotationConstraint {
             Fixed = 0,
             YOnly = 2,
@@ -113,12 +117,8 @@ namespace RoutedRootMotion {
             public float mag;
         }
         [System.Serializable]
-        public class Thresholds {
-            public float limitAngle_rotMode_deg;
-        }
-        [System.Serializable]
-        public class Driver {
-            public float rotSpeed_deg;
+        public class Constants {
+            public float epsilon_min_rot_deg;
         }
         [System.Serializable]
         public class Constraints {
@@ -130,11 +130,20 @@ namespace RoutedRootMotion {
             public Force force = new();
         }
         [System.Serializable]
+        public class Driver {
+            public AnimationMode animationMode;
+            public string animationName;
+
+            public float speed_forward;
+            public float speed_rotate_deg;
+        }
+        [System.Serializable]
         public class Settings {
-            public Constraints constraints = new();
             public DebugSettings debug = new();
-            public Thresholds thresholds = new();
-            public Driver driver = new();
+            public Constants constants = new();
+
+            public Driver moveForward = new();
+            public Driver rotateToward = new();
         }
         #endregion
     }
