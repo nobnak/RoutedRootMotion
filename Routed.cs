@@ -55,24 +55,25 @@ namespace RoutedRootMotion {
                 angle_deg = math.degrees(QuaternionUtil.Angle(rot));
             }
 
-            if (angle_deg <= settings.constants.epsilon_min_rot_deg) {
-                float3 pos_forward_lc;
-                quaternion rot_forward_lc;
-                MoveByRootMotion(animator, out pos_forward_lc, out rot_forward_lc);
-                transform.localPosition = pos_forward_lc;
-                transform.localRotation = rot_forward_lc;
-            } else {
-                float3 pos_towradForce_lc = pos_curr_lc;
-                quaternion rot_towardForce_lc = rot_curr_lc;
-                if (force.enabled) {
-                    var rotRatio = math.saturate(dt * settings.rotateToward.speed_rotate_deg / angle_deg);
-                    rot_towardForce_lc = math.slerp(rot_towardForce_lc, rot_force_lc, rotRatio);
-                }
-                transform.localPosition = pos_towradForce_lc;
-                transform.localRotation = rot_towardForce_lc;
+            float t = 0f;
+            if (settings.constants.epsilon_min_rot_deg > float.Epsilon)
+                t = math.saturate(math.unlerp(0f, settings.constants.epsilon_min_rot_deg, angle_deg));
+
+            float3 pos_forward_lc;
+            quaternion rot_forward_lc;
+            MoveByRootMotion(animator, out pos_forward_lc, out rot_forward_lc);
+
+            float3 pos_towrad_lc = pos_curr_lc;
+            quaternion rot_toward_lc = rot_curr_lc;
+            if (force.enabled) {
+                var rotRatio = math.saturate(dt * settings.rotateToward.speed_rotate_deg / angle_deg);
+                rot_toward_lc = math.slerp(rot_toward_lc, rot_force_lc, rotRatio);
             }
 
-            Debug.Log($"Angle={angle_deg:f}");
+            transform.localPosition = math.lerp(pos_forward_lc, pos_towrad_lc, t);
+            transform.localRotation = math.slerp(rot_forward_lc, rot_toward_lc, t);
+
+            Debug.Log($"Angle={angle_deg:f} t={t}");
         }
 
         private void MoveByRootMotion(Animator animator, out float3 pos_next_lc, out quaternion rot_next_lc) {
